@@ -1,0 +1,15 @@
+spring:
+  application:
+    name: kafka-router
+  kafka:
+    bootstrap-servers: localhost:9092
+    streams:
+      application-id: orders-router
+      properties:
+        default.key.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+        default.value.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+
+logging:
+  level:
+    com.example.kafkarouter: DEBUG
+    org.apache.kafka: INFO
