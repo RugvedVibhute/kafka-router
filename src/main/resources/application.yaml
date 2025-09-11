@@ -1,15 +1,17 @@
 spring:
   application:
-    name: kafka-router
-  kafka:
-    bootstrap-servers: localhost:9092
-    streams:
-      application-id: orders-router
-      properties:
-        default.key.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
-        default.value.serde: org.apache.kafka.common.serialization.Serdes$StringSerde
+    name: kafka-camel-router
+
+# Camel Configuration
+camel:
+  springboot:
+    name: OrderRoutingApplication
+  component:
+    kafka:
+      brokers: localhost:9092
 
 logging:
   level:
     com.example.kafkarouter: DEBUG
+    org.apache.camel: INFO
     org.apache.kafka: INFO
