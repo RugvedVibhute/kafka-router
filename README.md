@@ -1,29 +1,40 @@
-# Kafka Streams Dynamic Routing POC
+# Kafka Camel Dynamic Routing POC
 
-A simple Spring Boot application demonstrating **dynamic message routing using Kafka Streams** - similar to RabbitMQ topic exchanges. Messages from a main `orders` topic are automatically routed to regional subtopics based on message content.
+A Spring Boot application demonstrating **dynamic message routing using Apache Camel with Kafka** - providing RabbitMQ-style topic exchange functionality. Messages from a main `orders` topic are automatically routed to regional subtopics based on message content using Camel's powerful routing capabilities.
 
 ## What This Does
 
-This POC shows how to achieve **RabbitMQ-style topic routing** using Kafka Streams:
-- Messages sent to `orders` topic are automatically filtered and routed
-- Messages containing "us" → `orders.us`
-- Messages containing "eu" → `orders.eu`  
-- All other messages → `orders.other`
+This POC shows how to achieve **RabbitMQ-style topic routing** using Apache Camel with Kafka:
+- Apache Camel consumes messages from the `orders` topic
+- Messages are filtered and routed based on content:
+  - Messages containing "us" → `orders.us`
+  - Messages containing "eu" → `orders.eu`  
+  - All other messages → `orders.other`
 
 ## Architecture
 
 ```
 orders (main topic)
-    ↓ [Kafka Streams Processing]
+    ↓ [Apache Camel Content-Based Router]
     ├── orders.us    (US region orders)
     ├── orders.eu    (EU region orders) 
     └── orders.other (All other orders)
 ```
 
+## Technology Stack
+
+- **Spring Boot 3.2.0** - Application framework
+- **Apache Camel 4.2.0** - Integration framework for routing logic
+- **Spring Kafka** - Kafka integration
+- **Apache Kafka** - Message broker
+
+## Getting Started
+
 ### 1. Start Kafka with Docker
 
+Create a `docker-compose.yml` file:
+
 ```yaml
-# docker-compose.yml
 version: '3.8'
 services:
   zookeeper:
@@ -48,6 +59,7 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 ```
 
+Start Kafka:
 ```bash
 docker-compose up -d
 ```
@@ -67,23 +79,56 @@ kafka-topics --create --topic orders.other --bootstrap-server localhost:9092 --p
 kafka-topics --list --bootstrap-server localhost:9092
 ```
 
-### 3. Run the Application
+### 3. Build and Run the Application
+
+```bash
+# Build the application
+./mvnw clean package
+
+# Run the application
+./mvnw spring-boot:run
+```
+
+The application will start and automatically begin consuming from the `orders` topic.
+
+## How the Routing Works
+
+The routing logic is implemented in `OrderRoutingRoute.java` using Camel's Content-Based Router pattern:
+
+```java
+from("kafka:orders?brokers=localhost:9092&groupId=order-processor")
+    .choice()
+    .when(simple("${body} contains 'us'"))
+    .to("kafka:orders.us?brokers=localhost:9092")
+    .when(simple("${body} contains 'eu'"))
+    .to("kafka:orders.eu?brokers=localhost:9092")
+    .otherwise()
+    .to("kafka:orders.other?brokers=localhost:9092");
+```
+
+This Camel route:
+- Consumes messages from `orders` topic with consumer group `order-processor`
+- Uses Camel's Choice component for conditional routing
+- Routes based on message content using Simple language expressions
+- Publishes to appropriate regional topics
 
 ## Testing the Routing
 
 ### Send Test Messages
 
-Open a producer in your terminal:
+Open a Kafka producer in your terminal:
 ```bash
 kafka-console-producer --broker-list localhost:9092 --topic orders
 ```
 
 Send these test messages (one per line):
 ```
-order1-us
-order2-eu
-order3-in
-order4-canada
+order1-us-12345
+order2-eu-67890
+order3-india-54321
+order4-canada-98765
+special-us-offer
+eu-customer-order
 ```
 
 ### Verify Routing
@@ -94,16 +139,28 @@ In separate terminal windows, check each topic to confirm routing:
 ```bash
 kafka-console-consumer --bootstrap-server localhost:9092 --topic orders.us --from-beginning
 ```
-Should show: `order1-us`
+Expected output:
+```
+order1-us-12345
+special-us-offer
+```
 
 **Check EU orders:**
 ```bash
 kafka-console-consumer --bootstrap-server localhost:9092 --topic orders.eu --from-beginning  
 ```
-Should show: `order2-eu`
+Expected output:
+```
+order2-eu-67890
+eu-customer-order
+```
 
 **Check other orders:**
 ```bash
 kafka-console-consumer --bootstrap-server localhost:9092 --topic orders.other --from-beginning
 ```
-Should show: `order3-in` and `order4-canada`
+Expected output:
+```
+order3-india-54321
+order4-canada-98765
+```
